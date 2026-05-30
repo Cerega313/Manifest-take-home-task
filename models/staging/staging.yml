@@ -1,178 +1,168 @@
 version: 2
-
 models:
-  - name: stg_pg__cw_case
-    description: >
-      Non-deleted workflow cases with normalized column names. The Postgres
-      operational extract is assumed to preserve database-native types, so this
-      staging model standardizes names and filters soft deletes rather than
-      repairing dirty string-typed fields.
-    columns:
-      - name: case_id
-        description: Primary key for a workflow case.
-        tests:
-          - not_null
-          - unique
-      - name: ingestion_timestamp
-        description: Raw ingestion timestamp retained for lineage and freshness debugging.
-        tests:
-          - not_null
+- name: stg_pg__cw_case
+  description: 'Non-deleted workflow cases with normalized column names. The Postgres operational extract is assumed to preserve database-native types, so this staging model standardizes names and filters soft deletes rather than repairing dirty string-typed fields.
 
-  - name: stg_pg__cw_task
-    description: >
-      Non-deleted workflow tasks with normalized column names. The Postgres
-      operational extract is assumed to preserve database-native types, so this
-      staging model standardizes names and filters soft deletes rather than
-      repairing dirty string-typed fields.
-    columns:
-      - name: task_id
-        description: Primary key for a workflow task.
-        tests:
-          - not_null
-          - unique
-      - name: case_id
-        description: Parent workflow case key.
-        tests:
-          - not_null
-      - name: ingestion_timestamp
-        description: Raw ingestion timestamp retained for lineage and freshness debugging.
-        tests:
-          - not_null
+    '
+  columns:
+  - name: case_id
+    description: Primary key for a workflow case.
+    tests:
+    - not_null
+    - unique
+  - name: ingestion_timestamp
+    description: Raw ingestion timestamp retained for lineage and freshness debugging.
+    tests:
+    - not_null
+- name: stg_pg__cw_task
+  description: 'Non-deleted workflow tasks with normalized column names. The Postgres operational extract is assumed to preserve database-native types, so this staging model standardizes names and filters soft deletes rather than repairing dirty string-typed fields.
 
-  - name: stg_pg__cw_task_assignment
-    description: >
-      Non-deleted workflow task assignments with normalized column names. The
-      Postgres operational extract is assumed to preserve database-native types,
-      so this staging model standardizes names and filters soft deletes rather
-      than repairing dirty string-typed fields.
-    columns:
-      - name: task_assignment_id
-        description: Primary key for a task assignment.
-        tests:
-          - not_null
-          - unique
-      - name: task_id
-        description: Parent workflow task key.
-        tests:
-          - not_null
-      - name: ingestion_timestamp
-        description: Raw ingestion timestamp retained for lineage and freshness debugging.
-        tests:
-          - not_null
-      - name: active_time_ms
-        description: Time spent active in milliseconds as provided by the operational source.
-        tests:
-          - non_negative
+    '
+  columns:
+  - name: task_id
+    description: Primary key for a workflow task.
+    tests:
+    - not_null
+    - unique
+  - name: case_id
+    description: Parent workflow case key.
+    tests:
+    - not_null
+  - name: ingestion_timestamp
+    description: Raw ingestion timestamp retained for lineage and freshness debugging.
+    tests:
+    - not_null
+- name: stg_pg__cw_task_assignment
+  description: 'Non-deleted workflow task assignments with normalized column names. The Postgres operational extract is assumed to preserve database-native types, so this staging model standardizes names and filters soft deletes rather than repairing dirty string-typed fields.
 
-  - name: stg_amp__cw_events
-    description: >
-      Typed case workflow Amplitude events with core JSON properties extracted.
-      Raw JSON values are retained beside safe-cast typed columns where parsing
-      risk is realistic for event pipelines. Event and ingestion timestamps are
-      intentionally modeled as raw text in the landing table and safely parsed
-      into timestamp/date fields here. This model is incremental because raw
-      Amplitude events are append-heavy and use `ingestion_timestamp` as the
-      processing watermark.
-    columns:
-      - name: event_natural_key
-        description: Deterministic event key derived from timestamp, event type, IDs, and raw payload.
-        tests:
-          - not_null
-          - unique
-      - name: event_time
-        description: Parsed event timestamp from raw text.
-        tests:
-          - not_null
-      - name: event_date
-        description: Date derived from parsed `event_time`.
-        tests:
-          - not_null
-      - name: ingestion_timestamp
-        description: Parsed ingestion timestamp retained for lineage, freshness debugging, and incremental watermarks.
-        tests:
-          - not_null
-      - name: event_name
-        description: Case workflow event name.
-        tests:
-          - not_null
-          - accepted_values:
-              values:
-                - cw_case_page_viewed
-                - cw_case_view_toggled
-                - cw_task_viewed
-                - cw_task_started
-                - cw_task_completed
-                - cw_task_status_changed
-                - cw_task_dependency_bypassed
-                - cw_task_plugin_opened
-                - cw_doc_upload_started
-                - cw_doc_upload_completed
-                - cw_questionnaire_session_started
-                - cw_questionnaire_session_submitted
-                - cw_task_assignment_claimed
-      - name: user_can_act
-        description: Parsed boolean actor-permission flag from `event_properties.user_can_act`.
-      - name: user_can_claim
-        description: Parsed boolean actor-permission flag from `event_properties.user_can_claim`.
-      - name: file_count
-        description: Parsed INT64-style count of files selected for upload.
-        tests:
-          - non_negative
-      - name: success_count
-        description: Parsed INT64-style count of successfully uploaded files.
-        tests:
-          - non_negative
-      - name: error_count
-        description: Parsed INT64-style count of failed uploaded files.
-        tests:
-          - non_negative
-      - name: session_number
-        description: Parsed INT64-style questionnaire sitting number.
-        tests:
-          - non_negative
-      - name: instance_count
-        description: Parsed INT64-style count of questionnaire instances submitted.
-        tests:
-          - non_negative
-      - name: duration_ms
-        description: Parsed INT64-style task duration in milliseconds from `cw_task_completed`.
-        tests:
-          - non_negative
-      - name: duration_seconds
-        description: FLOAT64-style task duration in seconds derived from `duration_ms`.
-        tests:
-          - non_negative
-      - name: raw_file_count
-        description: Original untyped raw value from `event_properties.file_count`.
-      - name: raw_event_time
-        description: Original raw event timestamp text before parsing.
-      - name: raw_ingestion_timestamp
-        description: Original raw ingestion timestamp text before parsing.
-      - name: raw_success_count
-        description: Original untyped raw value from `event_properties.success_count`.
-      - name: raw_error_count
-        description: Original untyped raw value from `event_properties.error_count`.
-      - name: raw_session_number
-        description: Original untyped raw value from `event_properties.session_number`.
-      - name: raw_instance_count
-        description: Original untyped raw value from `event_properties.instance_count`.
-      - name: raw_duration_ms
-        description: Original untyped raw value from `event_properties.duration_ms`.
-      - name: has_numeric_parse_error
-        description: True when a numeric raw field is present but cannot be safely parsed.
-        tests:
-          - not_null
-          - accepted_values:
-              values: [false]
-              quote: false
-              config:
-                severity: error
-      - name: has_timestamp_parse_error
-        description: True when a timestamp raw field is present but cannot be safely parsed.
-        tests:
-          - not_null
-          - accepted_values:
-              values: [false]
-              quote: false
-              config:
-                severity: error
+    '
+  columns:
+  - name: task_assignment_id
+    description: Primary key for a task assignment.
+    tests:
+    - not_null
+    - unique
+  - name: task_id
+    description: Parent workflow task key.
+    tests:
+    - not_null
+  - name: ingestion_timestamp
+    description: Raw ingestion timestamp retained for lineage and freshness debugging.
+    tests:
+    - not_null
+  - name: active_time_ms
+    description: Time spent active in milliseconds as provided by the operational source.
+    tests:
+    - non_negative
+- name: stg_amp__cw_events
+  description: 'Typed case workflow Amplitude events with core JSON properties extracted. Raw JSON values are retained beside safe-cast typed columns where parsing risk is realistic for event pipelines. Event and ingestion timestamps are intentionally modeled as raw text in the landing table and safely parsed into timestamp/date fields here. This model is incremental because raw Amplitude events are append-heavy and use `ingestion_timestamp` as the processing watermark.
+
+    '
+  columns:
+  - name: event_natural_key
+    description: Deterministic event key derived from timestamp, event type, IDs, and raw payload.
+    tests:
+    - not_null
+    - unique
+  - name: event_time
+    description: Parsed event timestamp from raw text.
+    tests:
+    - not_null
+  - name: event_date
+    description: Date derived from parsed `event_time`.
+    tests:
+    - not_null
+  - name: ingestion_timestamp
+    description: Parsed ingestion timestamp retained for lineage, freshness debugging, and incremental watermarks.
+    tests:
+    - not_null
+  - name: event_name
+    description: Case workflow event name.
+    tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - cw_case_page_viewed
+          - cw_case_view_toggled
+          - cw_task_viewed
+          - cw_task_started
+          - cw_task_completed
+          - cw_task_status_changed
+          - cw_task_dependency_bypassed
+          - cw_task_plugin_opened
+          - cw_doc_upload_started
+          - cw_doc_upload_completed
+          - cw_questionnaire_session_started
+          - cw_questionnaire_session_submitted
+          - cw_task_assignment_claimed
+  - name: user_can_act
+    description: Parsed boolean actor-permission flag from `event_properties.user_can_act`.
+  - name: user_can_claim
+    description: Parsed boolean actor-permission flag from `event_properties.user_can_claim`.
+  - name: file_count
+    description: Parsed INT64-style count of files selected for upload.
+    tests:
+    - non_negative
+  - name: success_count
+    description: Parsed INT64-style count of successfully uploaded files.
+    tests:
+    - non_negative
+  - name: error_count
+    description: Parsed INT64-style count of failed uploaded files.
+    tests:
+    - non_negative
+  - name: session_number
+    description: Parsed INT64-style questionnaire sitting number.
+    tests:
+    - non_negative
+  - name: instance_count
+    description: Parsed INT64-style count of questionnaire instances submitted.
+    tests:
+    - non_negative
+  - name: duration_ms
+    description: Parsed INT64-style task duration in milliseconds from `cw_task_completed`.
+    tests:
+    - non_negative
+  - name: duration_seconds
+    description: FLOAT64-style task duration in seconds derived from `duration_ms`.
+    tests:
+    - non_negative
+  - name: raw_file_count
+    description: Original untyped raw value from `event_properties.file_count`.
+  - name: raw_event_time
+    description: Original raw event timestamp text before parsing.
+  - name: raw_ingestion_timestamp
+    description: Original raw ingestion timestamp text before parsing.
+  - name: raw_success_count
+    description: Original untyped raw value from `event_properties.success_count`.
+  - name: raw_error_count
+    description: Original untyped raw value from `event_properties.error_count`.
+  - name: raw_session_number
+    description: Original untyped raw value from `event_properties.session_number`.
+  - name: raw_instance_count
+    description: Original untyped raw value from `event_properties.instance_count`.
+  - name: raw_duration_ms
+    description: Original untyped raw value from `event_properties.duration_ms`.
+  - name: has_numeric_parse_error
+    description: True when a numeric raw field is present but cannot be safely parsed.
+    tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - false
+          quote: false
+        config:
+          severity: error
+  - name: has_timestamp_parse_error
+    description: True when a timestamp raw field is present but cannot be safely parsed.
+    tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - false
+          quote: false
+        config:
+          severity: error

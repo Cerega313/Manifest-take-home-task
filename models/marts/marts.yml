@@ -1,15 +1,121 @@
 version: 2
-
 models:
-  - name: marts_metrics__questionnaire_daily
-    description: >
-      Daily questionnaire completion mart with explicit assignment-level and
-      beneficiary-level numerators and denominators. Incremental runs recompute
-      full date/product groups touched by updated questionnaire assignments.
+- name: marts_metrics__questionnaire_daily
+  description: 'Daily questionnaire completion mart with explicit assignment-level and beneficiary-level numerators and denominators. Incremental runs recompute full date/product groups touched by updated questionnaire assignments.
+
+    '
+  tests:
+  - expression_is_true:
+      arguments:
+        expression: submitted_assignments <= activated_assignments
+  - expression_is_true:
+      arguments:
+        expression: reviewer_completed_assignments <= activated_assignments
+  - expression_is_true:
+      arguments:
+        expression: beneficiaries_with_any_submitted_assignment <= activated_beneficiaries
+  - expression_is_true:
+      arguments:
+        expression: beneficiaries_with_any_reviewer_completed_assignment <= activated_beneficiaries
+  columns:
+  - name: metric_day_product_key
+    description: Unique incremental key for the metric date and product combination.
+    tests:
+    - not_null
+    - unique
+  - name: metric_date
+    description: Activation date for the questionnaire cohort.
+    tests:
+    - not_null
+  - name: catalog_product_id
+    description: Product/visa key available in the provided schema.
+  - name: activated_assignments
+    description: 'Denominator: activated questionnaire assignments.'
+    tests:
+    - non_negative
+    config:
+      meta:
+        metric_type: additive_count
+        aggregation_behavior: sum
+  - name: submitted_assignments
+    description: 'Numerator: activated questionnaire assignments with `submitted_ts`.'
+    tests:
+    - non_negative
+    config:
+      meta:
+        metric_type: additive_count
+        aggregation_behavior: sum
+  - name: reviewer_completed_assignments
+    description: 'Strict numerator: activated questionnaire assignments with `completed_ts`.'
+    tests:
+    - non_negative
+    config:
+      meta:
+        metric_type: additive_count
+        aggregation_behavior: sum
+  - name: activated_beneficiaries
+    description: Distinct beneficiaries with at least one activated questionnaire assignment that day.
+    tests:
+    - non_negative
+  - name: beneficiaries_with_any_submitted_assignment
+    description: Distinct beneficiaries with at least one submitted questionnaire assignment that day.
+    tests:
+    - non_negative
+  - name: beneficiaries_with_any_reviewer_completed_assignment
+    description: Distinct beneficiaries with at least one reviewer-completed questionnaire assignment that day.
+    tests:
+    - non_negative
+  - name: assignment_submission_rate
+    description: '`submitted_assignments / activated_assignments`.'
+    tests:
+    - value_between:
+        arguments:
+          min_value: 0
+          max_value: 1
+    config:
+      meta:
+        metric_type: ratio
+        numerator: submitted_assignments
+        denominator: activated_assignments
+        aggregation_behavior: recompute_from_components
+        can_average_across_time: false
+  - name: assignment_reviewer_completion_rate
+    description: '`reviewer_completed_assignments / activated_assignments`.'
+    tests:
+    - value_between:
+        arguments:
+          min_value: 0
+          max_value: 1
+    config:
+      meta:
+        metric_type: ratio
+        numerator: reviewer_completed_assignments
+        denominator: activated_assignments
+        aggregation_behavior: recompute_from_components
+        can_average_across_time: false
+  - name: beneficiary_any_submission_rate
+    description: '`beneficiaries_with_any_submitted_assignment / activated_beneficiaries`.'
+    tests:
+    - value_between:
+        arguments:
+          min_value: 0
+          max_value: 1
+  - name: beneficiary_any_reviewer_completion_rate
+    description: '`beneficiaries_with_any_reviewer_completed_assignment / activated_beneficiaries`.'
+    tests:
+    - value_between:
+        arguments:
+          min_value: 0
+          max_value: 1
+  - name: max_source_updated_at
+    description: Latest source update timestamp included in this daily metric row.
+    tests:
+    - not_null
+  config:
     meta:
       ai_access: true
       metric_family: questionnaire_completion
-      metric_version: "1.0"
+      metric_version: '1.0'
       definition_status: proposed
       business_owner: Case Workflow PM
       technical_owner: Data Engineering
@@ -17,112 +123,107 @@ models:
       default_time_dimension: metric_date
       time_dimension_semantics: activation_date
       other_allowed_time_dimensions: []
-      allowed_time_grains: [day, week, month]
-      allowed_dimensions: [catalog_product_id]
+      allowed_time_grains:
+      - day
+      - week
+      - month
+      allowed_dimensions:
+      - catalog_product_id
       freshness_field: max_source_updated_at
       freshness_sla: daily_after_airflow_mart_run
       unsupported_breakdown_policy: controlled_limitation_message
+- name: marts_metrics__custom_tasks_daily
+  description: Daily custom-task trend mart by product key with strict and broad custom-task definitions.
+  tests:
+  - expression_is_true:
+      arguments:
+        expression: manually_added_tasks <= total_tasks
+  - expression_is_true:
+      arguments:
+        expression: non_template_tasks <= total_tasks
+  - expression_is_true:
+      arguments:
+        expression: broad_custom_tasks <= total_tasks
+  columns:
+  - name: metric_date
+    description: Task creation date.
     tests:
-      - expression_is_true:
-          expression: "submitted_assignments <= activated_assignments"
-      - expression_is_true:
-          expression: "reviewer_completed_assignments <= activated_assignments"
-      - expression_is_true:
-          expression: "beneficiaries_with_any_submitted_assignment <= activated_beneficiaries"
-      - expression_is_true:
-          expression: "beneficiaries_with_any_reviewer_completed_assignment <= activated_beneficiaries"
-    columns:
-      - name: metric_day_product_key
-        description: Unique incremental key for the metric date and product combination.
-        tests:
-          - not_null
-          - unique
-      - name: metric_date
-        description: Activation date for the questionnaire cohort.
-        tests:
-          - not_null
-      - name: catalog_product_id
-        description: Product/visa key available in the provided schema.
-      - name: activated_assignments
-        description: "Denominator: activated questionnaire assignments."
-        meta:
-          metric_type: additive_count
-          aggregation_behavior: sum
-        tests:
-          - non_negative
-      - name: submitted_assignments
-        description: "Numerator: activated questionnaire assignments with `submitted_ts`."
-        meta:
-          metric_type: additive_count
-          aggregation_behavior: sum
-        tests:
-          - non_negative
-      - name: reviewer_completed_assignments
-        description: "Strict numerator: activated questionnaire assignments with `completed_ts`."
-        meta:
-          metric_type: additive_count
-          aggregation_behavior: sum
-        tests:
-          - non_negative
-      - name: activated_beneficiaries
-        description: Distinct beneficiaries with at least one activated questionnaire assignment that day.
-        tests:
-          - non_negative
-      - name: beneficiaries_with_any_submitted_assignment
-        description: Distinct beneficiaries with at least one submitted questionnaire assignment that day.
-        tests:
-          - non_negative
-      - name: beneficiaries_with_any_reviewer_completed_assignment
-        description: Distinct beneficiaries with at least one reviewer-completed questionnaire assignment that day.
-        tests:
-          - non_negative
-      - name: assignment_submission_rate
-        description: "`submitted_assignments / activated_assignments`."
-        meta:
-          metric_type: ratio
-          numerator: submitted_assignments
-          denominator: activated_assignments
-          aggregation_behavior: recompute_from_components
-          can_average_across_time: false
-        tests:
-          - value_between:
-              min_value: 0
-              max_value: 1
-      - name: assignment_reviewer_completion_rate
-        description: "`reviewer_completed_assignments / activated_assignments`."
-        meta:
-          metric_type: ratio
-          numerator: reviewer_completed_assignments
-          denominator: activated_assignments
-          aggregation_behavior: recompute_from_components
-          can_average_across_time: false
-        tests:
-          - value_between:
-              min_value: 0
-              max_value: 1
-      - name: beneficiary_any_submission_rate
-        description: "`beneficiaries_with_any_submitted_assignment / activated_beneficiaries`."
-        tests:
-          - value_between:
-              min_value: 0
-              max_value: 1
-      - name: beneficiary_any_reviewer_completion_rate
-        description: "`beneficiaries_with_any_reviewer_completed_assignment / activated_beneficiaries`."
-        tests:
-          - value_between:
-              min_value: 0
-              max_value: 1
-      - name: max_source_updated_at
-        description: Latest source update timestamp included in this daily metric row.
-        tests:
-          - not_null
-
-  - name: marts_metrics__custom_tasks_daily
-    description: Daily custom-task trend mart by product key with strict and broad custom-task definitions.
+    - not_null
+  - name: catalog_product_id
+    description: Product/visa key available in the provided schema.
+  - name: total_tasks
+    description: 'Denominator: all non-deleted workflow tasks created on the date.'
+    tests:
+    - non_negative
+    config:
+      meta:
+        metric_type: additive_count
+        aggregation_behavior: sum
+  - name: manually_added_tasks
+    description: 'Primary numerator for the PM target: tasks classified as manually added.'
+    tests:
+    - non_negative
+    config:
+      meta:
+        metric_type: additive_count
+        aggregation_behavior: sum
+  - name: non_template_tasks
+    description: 'Diagnostic numerator: tasks with no `task_template_id`.'
+    tests:
+    - non_negative
+  - name: broad_custom_tasks
+    description: Diagnostic numerator combining manual and non-template custom evidence.
+    tests:
+    - non_negative
+  - name: manual_task_rate_target
+    description: PM target threshold for manually added task rate.
+    tests:
+    - value_between:
+        arguments:
+          min_value: 0
+          max_value: 1
+  - name: manually_added_task_rate
+    description: '`manually_added_tasks / total_tasks`; should remain at or below the 20% PM target.'
+    tests:
+    - value_between:
+        arguments:
+          min_value: 0
+          max_value: 1
+    config:
+      meta:
+        metric_type: ratio
+        numerator: manually_added_tasks
+        denominator: total_tasks
+        aggregation_behavior: recompute_from_components
+        can_average_across_time: false
+  - name: non_template_task_rate
+    description: '`non_template_tasks / total_tasks`.'
+    tests:
+    - value_between:
+        arguments:
+          min_value: 0
+          max_value: 1
+  - name: broad_custom_task_rate
+    description: '`broad_custom_tasks / total_tasks`.'
+    tests:
+    - value_between:
+        arguments:
+          min_value: 0
+          max_value: 1
+  - name: is_above_pm_target
+    description: Boolean flag showing whether `manually_added_task_rate` exceeds the 20% PM target.
+    tests:
+    - accepted_values:
+        arguments:
+          values:
+          - true
+          - false
+          quote: false
+  config:
     meta:
       ai_access: true
       metric_family: custom_tasks
-      metric_version: "1.0"
+      metric_version: '1.0'
       definition_status: proposed
       business_owner: Product Operations
       technical_owner: Data Engineering
@@ -130,90 +231,134 @@ models:
       default_time_dimension: metric_date
       time_dimension_semantics: task_creation_date
       other_allowed_time_dimensions: []
-      allowed_time_grains: [day, week, month]
-      allowed_dimensions: [catalog_product_id]
+      allowed_time_grains:
+      - day
+      - week
+      - month
+      allowed_dimensions:
+      - catalog_product_id
       freshness_sla: daily_after_airflow_mart_run
       hard_business_threshold: manually_added_task_rate <= 0.20
       unsupported_breakdown_policy: controlled_limitation_message
+- name: marts_metrics__case_duration_daily
+  description: Daily filed-case duration mart by filing date and product key.
+  tests:
+  - expression_is_true:
+      arguments:
+        expression: kickoff_population_cases <= filed_cases
+  - expression_is_true:
+      arguments:
+        expression: initialized_population_cases <= filed_cases
+  - expression_is_true:
+      arguments:
+        expression: created_population_cases <= filed_cases
+  - expression_is_true:
+      arguments:
+        expression: cases_with_legacy_link <= filed_cases
+  - expression_is_true:
+      arguments:
+        expression: p75_kickoff_to_filing_days is null or median_kickoff_to_filing_days is null or p75_kickoff_to_filing_days >= median_kickoff_to_filing_days
+  - expression_is_true:
+      arguments:
+        expression: p90_kickoff_to_filing_days is null or p75_kickoff_to_filing_days is null or p90_kickoff_to_filing_days >= p75_kickoff_to_filing_days
+  columns:
+  - name: metric_date
+    description: Filing date.
     tests:
-      - expression_is_true:
-          expression: "manually_added_tasks <= total_tasks"
-      - expression_is_true:
-          expression: "non_template_tasks <= total_tasks"
-      - expression_is_true:
-          expression: "broad_custom_tasks <= total_tasks"
-    columns:
-      - name: metric_date
-        description: Task creation date.
-        tests:
-          - not_null
-      - name: catalog_product_id
-        description: Product/visa key available in the provided schema.
-      - name: total_tasks
-        description: "Denominator: all non-deleted workflow tasks created on the date."
-        meta:
-          metric_type: additive_count
-          aggregation_behavior: sum
-        tests:
-          - non_negative
-      - name: manually_added_tasks
-        description: "Primary numerator for the PM target: tasks classified as manually added."
-        meta:
-          metric_type: additive_count
-          aggregation_behavior: sum
-        tests:
-          - non_negative
-      - name: non_template_tasks
-        description: "Diagnostic numerator: tasks with no `task_template_id`."
-        tests:
-          - non_negative
-      - name: broad_custom_tasks
-        description: Diagnostic numerator combining manual and non-template custom evidence.
-        tests:
-          - non_negative
-      - name: manual_task_rate_target
-        description: PM target threshold for manually added task rate.
-        tests:
-          - value_between:
-              min_value: 0
-              max_value: 1
-      - name: manually_added_task_rate
-        description: "`manually_added_tasks / total_tasks`; should remain at or below the 20% PM target."
-        meta:
-          metric_type: ratio
-          numerator: manually_added_tasks
-          denominator: total_tasks
-          aggregation_behavior: recompute_from_components
-          can_average_across_time: false
-        tests:
-          - value_between:
-              min_value: 0
-              max_value: 1
-      - name: non_template_task_rate
-        description: "`non_template_tasks / total_tasks`."
-        tests:
-          - value_between:
-              min_value: 0
-              max_value: 1
-      - name: broad_custom_task_rate
-        description: "`broad_custom_tasks / total_tasks`."
-        tests:
-          - value_between:
-              min_value: 0
-              max_value: 1
-      - name: is_above_pm_target
-        description: Boolean flag showing whether `manually_added_task_rate` exceeds the 20% PM target.
-        tests:
-          - accepted_values:
-              values: [true, false]
-              quote: false
-
-  - name: marts_metrics__case_duration_daily
-    description: Daily filed-case duration mart by filing date and product key.
+    - not_null
+  - name: catalog_product_id
+    description: Product/visa key available in the provided schema.
+  - name: filed_cases
+    description: Count of filed cases on the date.
+    tests:
+    - non_negative
+    config:
+      meta:
+        metric_type: additive_count
+        aggregation_behavior: sum
+  - name: kickoff_population_cases
+    description: Filed cases with non-null `kickoff_date` and valid `filing_date_actual >= kickoff_date`, the population for the primary duration metric.
+    tests:
+    - non_negative
+    config:
+      meta:
+        metric_type: additive_count
+        aggregation_behavior: sum
+  - name: avg_kickoff_to_filing_days
+    description: Average duration from `kickoff_date` to `filing_date_actual`.
+    tests:
+    - non_negative
+    config:
+      meta:
+        metric_type: average
+        base_measure: kickoff_to_filing_days
+        aggregation_behavior: recompute_from_base_rows
+        source_model: int_case_workflow__case_durations
+        can_average_across_time: false
+  - name: median_kickoff_to_filing_days
+    description: Median duration from `kickoff_date` to `filing_date_actual`.
+    tests:
+    - non_negative
+    config:
+      meta:
+        metric_type: percentile
+        percentile: 0.5
+        base_measure: kickoff_to_filing_days
+        aggregation_behavior: recompute_from_base_rows
+        source_model: int_case_workflow__case_durations
+        can_average_across_time: false
+        can_sum_across_time: false
+  - name: p75_kickoff_to_filing_days
+    description: 75th percentile duration from `kickoff_date` to `filing_date_actual`.
+    tests:
+    - non_negative
+    config:
+      meta:
+        metric_type: percentile
+        percentile: 0.75
+        base_measure: kickoff_to_filing_days
+        aggregation_behavior: recompute_from_base_rows
+        source_model: int_case_workflow__case_durations
+        can_average_across_time: false
+        can_sum_across_time: false
+  - name: p90_kickoff_to_filing_days
+    description: 90th percentile duration from `kickoff_date` to `filing_date_actual`.
+    tests:
+    - non_negative
+    config:
+      meta:
+        metric_type: percentile
+        percentile: 0.9
+        base_measure: kickoff_to_filing_days
+        aggregation_behavior: recompute_from_base_rows
+        source_model: int_case_workflow__case_durations
+        can_average_across_time: false
+        can_sum_across_time: false
+  - name: initialized_population_cases
+    description: Filed cases with non-null `initialized_at`.
+    tests:
+    - non_negative
+  - name: median_initialized_to_filing_days
+    description: Median duration from workflow initialization to actual filing.
+    tests:
+    - non_negative
+  - name: created_population_cases
+    description: Filed cases with non-null `created_at`.
+    tests:
+    - non_negative
+  - name: median_created_to_filing_days
+    description: Median duration from workflow case creation to actual filing.
+    tests:
+    - non_negative
+  - name: cases_with_legacy_link
+    description: Filed cases linked to a legacy CM case.
+    tests:
+    - non_negative
+  config:
     meta:
       ai_access: true
       metric_family: case_duration
-      metric_version: "1.0"
+      metric_version: '1.0'
       definition_status: proposed
       business_owner: Case Workflow PM
       technical_owner: Data Engineering
@@ -221,121 +366,164 @@ models:
       default_time_dimension: metric_date
       time_dimension_semantics: filing_date
       other_allowed_time_dimensions: []
-      allowed_time_grains: [day, week, month]
-      allowed_dimensions: [catalog_product_id]
+      allowed_time_grains:
+      - day
+      - week
+      - month
+      allowed_dimensions:
+      - catalog_product_id
       percentile_source_model: int_case_workflow__case_durations
       freshness_sla: daily_after_airflow_mart_run
       unsupported_breakdown_policy: controlled_limitation_message
-    tests:
-      - expression_is_true:
-          expression: "kickoff_population_cases <= filed_cases"
-      - expression_is_true:
-          expression: "initialized_population_cases <= filed_cases"
-      - expression_is_true:
-          expression: "created_population_cases <= filed_cases"
-      - expression_is_true:
-          expression: "cases_with_legacy_link <= filed_cases"
-      - expression_is_true:
-          expression: "p75_kickoff_to_filing_days is null or median_kickoff_to_filing_days is null or p75_kickoff_to_filing_days >= median_kickoff_to_filing_days"
-      - expression_is_true:
-          expression: "p90_kickoff_to_filing_days is null or p75_kickoff_to_filing_days is null or p90_kickoff_to_filing_days >= p75_kickoff_to_filing_days"
-    columns:
-      - name: metric_date
-        description: Filing date.
-        tests:
-          - not_null
-      - name: catalog_product_id
-        description: Product/visa key available in the provided schema.
-      - name: filed_cases
-        description: Count of filed cases on the date.
-        meta:
-          metric_type: additive_count
-          aggregation_behavior: sum
-        tests:
-          - non_negative
-      - name: kickoff_population_cases
-        description: Filed cases with non-null `kickoff_date` and valid `filing_date_actual >= kickoff_date`, the population for the primary duration metric.
-        meta:
-          metric_type: additive_count
-          aggregation_behavior: sum
-        tests:
-          - non_negative
-      - name: avg_kickoff_to_filing_days
-        description: Average duration from `kickoff_date` to `filing_date_actual`.
-        meta:
-          metric_type: average
-          base_measure: kickoff_to_filing_days
-          aggregation_behavior: recompute_from_base_rows
-          source_model: int_case_workflow__case_durations
-          can_average_across_time: false
-        tests:
-          - non_negative
-      - name: median_kickoff_to_filing_days
-        description: Median duration from `kickoff_date` to `filing_date_actual`.
-        meta:
-          metric_type: percentile
-          percentile: 0.5
-          base_measure: kickoff_to_filing_days
-          aggregation_behavior: recompute_from_base_rows
-          source_model: int_case_workflow__case_durations
-          can_average_across_time: false
-          can_sum_across_time: false
-        tests:
-          - non_negative
-      - name: p75_kickoff_to_filing_days
-        description: 75th percentile duration from `kickoff_date` to `filing_date_actual`.
-        meta:
-          metric_type: percentile
-          percentile: 0.75
-          base_measure: kickoff_to_filing_days
-          aggregation_behavior: recompute_from_base_rows
-          source_model: int_case_workflow__case_durations
-          can_average_across_time: false
-          can_sum_across_time: false
-        tests:
-          - non_negative
-      - name: p90_kickoff_to_filing_days
-        description: 90th percentile duration from `kickoff_date` to `filing_date_actual`.
-        meta:
-          metric_type: percentile
-          percentile: 0.9
-          base_measure: kickoff_to_filing_days
-          aggregation_behavior: recompute_from_base_rows
-          source_model: int_case_workflow__case_durations
-          can_average_across_time: false
-          can_sum_across_time: false
-        tests:
-          - non_negative
-      - name: initialized_population_cases
-        description: Filed cases with non-null `initialized_at`.
-        tests:
-          - non_negative
-      - name: median_initialized_to_filing_days
-        description: Median duration from workflow initialization to actual filing.
-        tests:
-          - non_negative
-      - name: created_population_cases
-        description: Filed cases with non-null `created_at`.
-        tests:
-          - non_negative
-      - name: median_created_to_filing_days
-        description: Median duration from workflow case creation to actual filing.
-        tests:
-          - non_negative
-      - name: cases_with_legacy_link
-        description: Filed cases linked to a legacy CM case.
-        tests:
-          - non_negative
+- name: marts_metrics__file_upload_daily
+  description: 'Daily beneficiary upload funnel mart keyed by first plugin-open date. Funnel counts are assignment-grain, not raw event counts. Incremental runs recompute full date/product groups touched by newly ingested upload events.
 
-  - name: marts_metrics__file_upload_daily
-    description: >
-      Daily beneficiary upload funnel mart keyed by first plugin-open date.
-      Funnel counts are assignment-grain, not raw event counts. Incremental runs
-      recompute full date/product groups touched by newly ingested upload events.
+    '
+  tests:
+  - expression_is_true:
+      arguments:
+        expression: started_upload_count <= opened_upload_plugin_count
+  - expression_is_true:
+      arguments:
+        expression: completed_upload_with_any_success_count <= started_upload_count
+  - expression_is_true:
+      arguments:
+        expression: completed_upload_with_full_success_count <= completed_upload_with_any_success_count
+  columns:
+  - name: metric_day_product_key
+    description: Unique incremental key for the metric date and product combination.
+    tests:
+    - not_null
+    - unique
+  - name: metric_date
+    description: Date of first upload-plugin open.
+    tests:
+    - not_null
+  - name: catalog_product_id
+    description: Product/visa key available in the provided schema.
+  - name: opened_upload_plugin_count
+    description: 'Denominator: assignments where a beneficiary opened the file-upload plugin.'
+    tests:
+    - non_negative
+    config:
+      meta:
+        metric_type: additive_count
+        aggregation_behavior: sum
+  - name: started_upload_count
+    description: 'Step-two numerator: assignments where a beneficiary started an upload.'
+    tests:
+    - non_negative
+    config:
+      meta:
+        metric_type: additive_count
+        aggregation_behavior: sum
+  - name: completed_upload_with_any_success_count
+    description: 'Success numerator: assignments with at least one completed upload event where `success_count > 0`.'
+    tests:
+    - non_negative
+    config:
+      meta:
+        metric_type: additive_count
+        aggregation_behavior: sum
+  - name: completed_upload_with_full_success_count
+    description: 'Strict success numerator: assignments with a completed upload event where `success_count = file_count` and `file_count > 0`.'
+    tests:
+    - non_negative
+    config:
+      meta:
+        metric_type: additive_count
+        aggregation_behavior: sum
+  - name: open_to_start_rate
+    description: '`started_upload_count / opened_upload_plugin_count`.'
+    tests:
+    - value_between:
+        arguments:
+          min_value: 0
+          max_value: 1
+    config:
+      meta:
+        metric_type: ratio
+        numerator: started_upload_count
+        denominator: opened_upload_plugin_count
+        aggregation_behavior: recompute_from_components
+        can_average_across_time: false
+  - name: start_to_any_success_rate
+    description: '`completed_upload_with_any_success_count / started_upload_count`.'
+    tests:
+    - value_between:
+        arguments:
+          min_value: 0
+          max_value: 1
+    config:
+      meta:
+        metric_type: ratio
+        numerator: completed_upload_with_any_success_count
+        denominator: started_upload_count
+        aggregation_behavior: recompute_from_components
+        can_average_across_time: false
+  - name: start_to_full_success_rate
+    description: '`completed_upload_with_full_success_count / started_upload_count`.'
+    tests:
+    - value_between:
+        arguments:
+          min_value: 0
+          max_value: 1
+    config:
+      meta:
+        metric_type: ratio
+        numerator: completed_upload_with_full_success_count
+        denominator: started_upload_count
+        aggregation_behavior: recompute_from_components
+        can_average_across_time: false
+  - name: overall_any_success_rate
+    description: '`completed_upload_with_any_success_count / opened_upload_plugin_count`.'
+    tests:
+    - value_between:
+        arguments:
+          min_value: 0
+          max_value: 1
+    config:
+      meta:
+        metric_type: ratio
+        numerator: completed_upload_with_any_success_count
+        denominator: opened_upload_plugin_count
+        aggregation_behavior: recompute_from_components
+        can_average_across_time: false
+  - name: overall_full_success_rate
+    description: '`completed_upload_with_full_success_count / opened_upload_plugin_count`.'
+    tests:
+    - value_between:
+        arguments:
+          min_value: 0
+          max_value: 1
+    config:
+      meta:
+        metric_type: ratio
+        numerator: completed_upload_with_full_success_count
+        denominator: opened_upload_plugin_count
+        aggregation_behavior: recompute_from_components
+        can_average_across_time: false
+  - name: total_files_selected_across_attempts
+    description: Sum of selected files across upload-start events for the assignments in the cohort.
+    tests:
+    - non_negative
+  - name: total_successful_files_uploaded
+    description: Sum of successfully uploaded files across upload-completed events for the assignments in the cohort.
+    tests:
+    - non_negative
+  - name: total_failed_files_uploaded
+    description: Sum of failed uploaded files across upload-completed events for the assignments in the cohort.
+    tests:
+    - non_negative
+  - name: max_ingestion_timestamp
+    description: Latest Amplitude ingestion timestamp included in this daily metric row.
+    tests:
+    - not_null
+  config:
     meta:
       ai_access: true
       metric_family: file_upload_funnel
-      metric_version: "1.0"
+      metric_version: '1.0'
       definition_status: proposed
       business_owner: Product Operations
       technical_owner: Data Engineering
@@ -343,131 +531,12 @@ models:
       default_time_dimension: metric_date
       time_dimension_semantics: first_plugin_opened_date
       other_allowed_time_dimensions: []
-      allowed_time_grains: [day, week, month]
-      allowed_dimensions: [catalog_product_id]
+      allowed_time_grains:
+      - day
+      - week
+      - month
+      allowed_dimensions:
+      - catalog_product_id
       freshness_field: max_ingestion_timestamp
       freshness_sla: daily_after_airflow_mart_run
       unsupported_breakdown_policy: controlled_limitation_message
-    tests:
-      - expression_is_true:
-          expression: "started_upload_count <= opened_upload_plugin_count"
-      - expression_is_true:
-          expression: "completed_upload_with_any_success_count <= started_upload_count"
-      - expression_is_true:
-          expression: "completed_upload_with_full_success_count <= completed_upload_with_any_success_count"
-    columns:
-      - name: metric_day_product_key
-        description: Unique incremental key for the metric date and product combination.
-        tests:
-          - not_null
-          - unique
-      - name: metric_date
-        description: Date of first upload-plugin open.
-        tests:
-          - not_null
-      - name: catalog_product_id
-        description: Product/visa key available in the provided schema.
-      - name: opened_upload_plugin_count
-        description: "Denominator: assignments where a beneficiary opened the file-upload plugin."
-        meta:
-          metric_type: additive_count
-          aggregation_behavior: sum
-        tests:
-          - non_negative
-      - name: started_upload_count
-        description: "Step-two numerator: assignments where a beneficiary started an upload."
-        meta:
-          metric_type: additive_count
-          aggregation_behavior: sum
-        tests:
-          - non_negative
-      - name: completed_upload_with_any_success_count
-        description: "Success numerator: assignments with at least one completed upload event where `success_count > 0`."
-        meta:
-          metric_type: additive_count
-          aggregation_behavior: sum
-        tests:
-          - non_negative
-      - name: completed_upload_with_full_success_count
-        description: "Strict success numerator: assignments with a completed upload event where `success_count = file_count` and `file_count > 0`."
-        meta:
-          metric_type: additive_count
-          aggregation_behavior: sum
-        tests:
-          - non_negative
-      - name: open_to_start_rate
-        description: "`started_upload_count / opened_upload_plugin_count`."
-        meta:
-          metric_type: ratio
-          numerator: started_upload_count
-          denominator: opened_upload_plugin_count
-          aggregation_behavior: recompute_from_components
-          can_average_across_time: false
-        tests:
-          - value_between:
-              min_value: 0
-              max_value: 1
-      - name: start_to_any_success_rate
-        description: "`completed_upload_with_any_success_count / started_upload_count`."
-        meta:
-          metric_type: ratio
-          numerator: completed_upload_with_any_success_count
-          denominator: started_upload_count
-          aggregation_behavior: recompute_from_components
-          can_average_across_time: false
-        tests:
-          - value_between:
-              min_value: 0
-              max_value: 1
-      - name: start_to_full_success_rate
-        description: "`completed_upload_with_full_success_count / started_upload_count`."
-        meta:
-          metric_type: ratio
-          numerator: completed_upload_with_full_success_count
-          denominator: started_upload_count
-          aggregation_behavior: recompute_from_components
-          can_average_across_time: false
-        tests:
-          - value_between:
-              min_value: 0
-              max_value: 1
-      - name: overall_any_success_rate
-        description: "`completed_upload_with_any_success_count / opened_upload_plugin_count`."
-        meta:
-          metric_type: ratio
-          numerator: completed_upload_with_any_success_count
-          denominator: opened_upload_plugin_count
-          aggregation_behavior: recompute_from_components
-          can_average_across_time: false
-        tests:
-          - value_between:
-              min_value: 0
-              max_value: 1
-      - name: overall_full_success_rate
-        description: "`completed_upload_with_full_success_count / opened_upload_plugin_count`."
-        meta:
-          metric_type: ratio
-          numerator: completed_upload_with_full_success_count
-          denominator: opened_upload_plugin_count
-          aggregation_behavior: recompute_from_components
-          can_average_across_time: false
-        tests:
-          - value_between:
-              min_value: 0
-              max_value: 1
-      - name: total_files_selected_across_attempts
-        description: Sum of selected files across upload-start events for the assignments in the cohort.
-        tests:
-          - non_negative
-      - name: total_successful_files_uploaded
-        description: Sum of successfully uploaded files across upload-completed events for the assignments in the cohort.
-        tests:
-          - non_negative
-      - name: total_failed_files_uploaded
-        description: Sum of failed uploaded files across upload-completed events for the assignments in the cohort.
-        tests:
-          - non_negative
-      - name: max_ingestion_timestamp
-        description: Latest Amplitude ingestion timestamp included in this daily metric row.
-        tests:
-          - not_null
