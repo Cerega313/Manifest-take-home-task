@@ -41,7 +41,7 @@ select
         / nullif(count(*), 0),
         4
     ) as questionnaire_reviewer_completion_rate
-from int_case_workflow__questionnaire_assignments
+from {{ ref('int_case_workflow__questionnaire_assignments') }}
 where is_activated = 1
   and activation_week is not null
 group by 1, 2

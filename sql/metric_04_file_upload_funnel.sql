@@ -29,7 +29,7 @@ with attempts as (
         total_files_selected_across_attempts,
         total_successful_files_uploaded,
         total_failed_files_uploaded
-    from int_case_workflow__file_upload_attempts
+    from {{ ref('int_case_workflow__file_upload_attempts') }}
 )
 
 select

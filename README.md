@@ -6,6 +6,11 @@ This repository answers the four launch metrics from the brief and adds a small 
 
 The brief only requires four metric queries plus written decisions/design notes. This project includes that minimum plus a lightweight modeling layer because the problem is fundamentally about metric definitions, source-of-truth discipline, and production readiness.
 
+The repository is organized in two parts:
+
+- **Take-home answer:** the files required to answer the prompt directly.
+- **Production extension:** additional dbt models, tests, observability notes, and AI-agent guardrails that show how the same metric logic could be made reliable in a warehouse.
+
 ## Repository Layout
 
 - `sql/`: the four analyst-facing metric queries requested in the brief.
@@ -24,20 +29,37 @@ The brief only requires four metric queries plus written decisions/design notes.
 
 ## How To Read This Submission
 
-1. Read [decisions.md](decisions.md) for the metric definitions and judgment calls.
-2. Read the four root metric queries in [sql](sql/) to see the direct deliverables requested in the brief.
-3. Inspect [models](models/) to see how the same logic is structured in dbt for repeatable reporting.
-4. Read [design.md](design.md) for the AI-agent / semantic-layer answer.
+### Required Take-Home Answer
+
+1. Read [decisions.md](decisions.md) for the metric definitions, source choices, numerator/denominator logic, edge cases, and debatable decisions.
+2. Read the four root metric queries in [sql](sql/) to see the direct SQL deliverables requested in the brief.
+3. Read [design.md](design.md) for the system-design answer about dashboards, semantic definitions, and AI-safe metric consumption.
+
+### Extra Production Extension
+
+The remaining files show how the answer could be operationalized beyond the brief:
+
+1. Inspect [models](models/) for a dbt-style staging, intermediate, and mart structure.
+2. Inspect [tests](tests/) and the model YAML files for reusable data-quality checks.
+3. Read [docs/observability.md](docs/observability.md) for freshness, Elementary anomaly checks, and Slack alert routing.
+4. Read [docs/agent_metric_contract.md](docs/agent_metric_contract.md) and [docs/ai_agent_consumption_and_guardrails.md](docs/ai_agent_consumption_and_guardrails.md) for the lightweight AI-agent metric contract.
+
+These additions are included because the metrics are likely to be consumed by dashboards and internal agents. The extra layer demonstrates how to prevent common production failures: ambiguous definitions, unsafe rollups, stale data, schema drift, and inconsistent metric answers across tools.
 
 ## Optional dbt Validation
 
 The four requested deliverables are the SQL files and documentation. The dbt layer is included to show how the logic would be operationalized.
 
-If validating the dbt skeleton in a local environment:
+Without a configured warehouse profile and source tables, the safest structural checks are:
 
 ```bash
 dbt deps
 dbt parse
+```
+
+If a reviewer also configures `profiles.yml` and provides compatible raw source tables, the model tests can be run with:
+
+```bash
 dbt test
 ```
 
@@ -65,16 +87,18 @@ The approach prioritizes authoritative source selection first, then transparent 
 3. Case duration definition:
    `kickoff_date -> filing_date_actual` is used as the primary operational KPI, with `created`, `initialized`, and `classification` alternatives kept side by side because they answer different business questions and have different missingness patterns.
 
-## Minimum Delivered
+## Required Take-Home Answer Delivered
 
 - All four requested metric SQL files.
 - A separate [decisions.md](decisions.md).
 - A separate [design.md](design.md).
 - Non-obvious SQL logic commented in the core models and metric files.
 
-## Extra Delivered
+## Extra Production Extension Delivered
 
-- A dbt-style layered model structure instead of only standalone queries.
+The extension is intentionally secondary to the required answer. Its purpose is to demonstrate how the metric definitions could survive real production use.
+
+- dbt-style layered model structure instead of only standalone queries.
 - Daily metric marts so the same logic can power trend charts, not only one-off answers.
 - YAML-declared dbt tests for raw daily volume, rate bounds, duration sanity, and funnel monotonicity.
 - Elementary-style raw source observability: source freshness, schema-change checks, daily volume anomalies, and alert routing.
@@ -100,5 +124,5 @@ The approach prioritizes authoritative source selection first, then transparent 
 ## Notes On Productionization
 
 - The daily marts are the layer intended for BI and internal AI agents.
-- The root `sql/metric_*.sql` files are plain SQL over the prepared intermediate models. The dbt model files show how those intermediate relations are built.
+- The root `sql/metric_*.sql` files use dbt `ref()` to point at the prepared intermediate models. The dbt model files show how those intermediate relations are built.
 - The provided packet mentions 14 Amplitude events, but the attached event dictionary enumerates 13. That mismatch should be clarified before production hardening.

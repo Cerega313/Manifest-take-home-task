@@ -43,7 +43,7 @@ with task_base as (
         is_manually_added_task,
         is_non_template_task,
         is_custom_task_broad
-    from int_case_workflow__custom_tasks
+    from {{ ref('int_case_workflow__custom_tasks') }}
 )
 
 select

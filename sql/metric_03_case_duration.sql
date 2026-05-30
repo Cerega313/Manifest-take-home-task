@@ -39,7 +39,7 @@ with durations as (
         kickoff_to_filing_days,
         classification_to_filing_days,
         has_legacy_case_link
-    from int_case_workflow__case_durations
+    from {{ ref('int_case_workflow__case_durations') }}
     where is_valid_primary_duration = 1
 )
 
