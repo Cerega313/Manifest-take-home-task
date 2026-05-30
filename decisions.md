@@ -1,5 +1,18 @@
 # Metric Decisions
 
+## Why Legacy Case Matter Tables Are Not Primary Sources
+
+The take-home package includes legacy Case Matter tables (`cm_*`) together with the new Case Workflow tables (`cw_*`). The legacy `cm_*` tables are not used as primary sources for the four requested metrics because these metrics are intended to measure the new Case Workflow experience.
+
+The source-of-truth selection is:
+
+- questionnaire completion: `cw_task_assignment`, because the relevant lifecycle states are `activated_ts`, `submitted_ts`, and `completed_ts`;
+- custom task rate: `cw_task`, because task origin is represented through fields such as `creation_source` and `task_template_id`;
+- case duration: `cw_case`, because the relevant workflow dates are stored on the new workflow case;
+- file-upload funnel: Amplitude `cw_*` events, because the metric measures user interaction with the new upload plugin.
+
+The legacy `cm_*` tables can still support analysis such as linking a new workflow case back to a legacy Case Matter record via `case_matter_case_id`, checking migrated or hybrid cases, retrieving legacy product labels, or building historical pre/post comparisons. They should not be treated as the source of truth for the new workflow task lifecycle or plugin behavior.
+
 ## Metric 1: % of beneficiaries who complete the questionnaire
 
 ### What The Metric Shows
@@ -180,6 +193,8 @@ The provided schema does not include the product dimension table, so the metric 
 cw_case.catalog_product_id
 ```
 
+Legacy `cm_case` product fields are not used as the primary grouping key. The new workflow uses `cw_case.catalog_product_id`, which represents the normalized product catalog. In production, this should join to the canonical product catalog table to expose the human-readable visa or product name.
+
 Even if the current data effectively contains only EB-1A, the query is written to support future products and visa types.
 
 ### Calculation Grain
@@ -344,6 +359,8 @@ Required table:
 - `cw_case`
 
 Postgres is authoritative because case lifecycle dates are backend workflow state, not front-end behavior.
+
+`case_matter_case_id` is treated as a legacy linkage, not the primary case identifier for this metric. Legacy-linked case counts can be used as a diagnostic dimension, but the duration itself is calculated from `cw_case` dates because the metric measures the new workflow lifecycle.
 
 ### Primary Definition
 

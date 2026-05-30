@@ -59,6 +59,12 @@ The approach prioritizes authoritative source selection first, then transparent 
 - Metric 4, file upload funnel:
   Amplitude primary. This is a behavioral plugin funnel, and the subtle trap lives in the event payload semantics.
 
+## Source Selection Note
+
+The provided materials include both the new Case Workflow tables (`cw_*`) and the legacy Case Matter tables (`cm_*`). The `cw_*` model is treated as the primary source of truth for the requested metrics because the assignment focuses on the new Case Workflow launch.
+
+The legacy `cm_*` tables are useful as supporting context for migration diagnostics, historical comparison, or legacy product labels. However, they are not used as primary sources for these metrics because they do not own the new workflow task lifecycle, task assignment states, custom task creation logic, or upload plugin behavior.
+
 ## Biggest Judgment Calls
 
 1. Questionnaire metric title vs. body:
