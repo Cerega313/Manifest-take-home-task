@@ -46,25 +46,6 @@ The remaining files show how the answer could be operationalized beyond the brie
 
 These additions are included because the metrics are likely to be consumed by dashboards and internal agents. The extra layer demonstrates how to prevent common production failures: ambiguous definitions, unsafe rollups, stale data, schema drift, and inconsistent metric answers across tools.
 
-## Optional dbt Validation
-
-The four requested deliverables are the SQL files and documentation. The dbt layer is included to show how the logic would be operationalized.
-
-Without a configured warehouse profile and source tables, the safest structural checks are:
-
-```bash
-dbt deps
-dbt parse
-```
-
-If a reviewer also configures `profiles.yml` and provides compatible raw source tables, the model tests can be run with:
-
-```bash
-dbt test
-```
-
-`packages.yml` includes Elementary because the raw source contracts demonstrate freshness, schema-change, and volume-anomaly monitoring.
-
 ## Overall Approach
 
 The approach prioritizes authoritative source selection first, then transparent metric definitions.
