@@ -1,0 +1,18 @@
+name: manifest_take_home_task
+version: 1.0.0
+config-version: 2
+
+profile: manifest_take_home_task
+
+model-paths: ["models"]
+analysis-paths: ["sql"]
+test-paths: ["tests"]
+
+models:
+  manifest_take_home_task:
+    staging:
+      +materialized: table
+    intermediate:
+      +materialized: table
+    marts:
+      +materialized: table

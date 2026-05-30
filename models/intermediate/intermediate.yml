@@ -1,0 +1,197 @@
+version: 2
+
+models:
+  - name: int_case_workflow__questionnaire_assignments
+    description: >
+      Questionnaire assignment candidates identified through a combination of
+      backend and Amplitude signals because the provided schema packet does not
+      expose an explicit backend plugin-type field. Incremental updates use the
+      greater of assignment update time and Amplitude ingestion time.
+    columns:
+      - name: task_assignment_id
+        description: Assignment grain primary key.
+        tests:
+          - not_null
+          - unique
+      - name: case_id
+        description: Parent workflow case.
+        tests:
+          - not_null
+      - name: task_id
+        description: Parent workflow task.
+        tests:
+          - not_null
+      - name: activated_ts
+        description: Timestamp when the questionnaire assignment became active.
+      - name: submitted_ts
+        description: Timestamp when the questionnaire assignment was submitted by the beneficiary.
+      - name: completed_ts
+        description: Timestamp when the questionnaire assignment was completed after downstream review.
+      - name: max_questionnaire_event_ingestion_timestamp
+        description: Latest Amplitude ingestion timestamp observed for questionnaire events on this assignment.
+      - name: source_updated_at
+        description: Incremental watermark combining Postgres assignment updates and Amplitude event ingestion.
+        tests:
+          - not_null
+      - name: iteration_count
+        description: Rework or resubmission iteration count.
+        tests:
+          - non_negative
+      - name: is_activated
+        description: Binary denominator flag for activated questionnaire assignments.
+        tests:
+          - accepted_values:
+              values: [0, 1]
+              quote: false
+      - name: is_submitted
+        description: Binary numerator flag for beneficiary-submitted questionnaire assignments.
+        tests:
+          - accepted_values:
+              values: [0, 1]
+              quote: false
+      - name: is_reviewer_completed
+        description: Binary strict numerator flag for reviewer-completed questionnaire assignments.
+        tests:
+          - accepted_values:
+              values: [0, 1]
+              quote: false
+
+  - name: int_case_workflow__custom_tasks
+    description: >
+      Task inventory with strict and broad custom-task classifications.
+    columns:
+      - name: task_id
+        description: Task grain primary key.
+        tests:
+          - not_null
+          - unique
+      - name: case_id
+        description: Parent workflow case.
+        tests:
+          - not_null
+      - name: task_created_date
+        description: Date used for daily task trend marts.
+        tests:
+          - not_null
+      - name: is_manually_added_task
+        description: Strict numerator flag for the PM target of manually added tasks.
+        tests:
+          - accepted_values:
+              values: [0, 1]
+              quote: false
+      - name: is_non_template_task
+        description: Diagnostic flag for tasks without a template task ID.
+        tests:
+          - accepted_values:
+              values: [0, 1]
+              quote: false
+      - name: is_custom_task_broad
+        description: Broader custom-task diagnostic flag combining manual and non-template evidence.
+        tests:
+          - accepted_values:
+              values: [0, 1]
+              quote: false
+
+  - name: int_case_workflow__case_durations
+    description: Filed cases with several duration definitions side by side.
+    columns:
+      - name: case_id
+        description: Case grain primary key.
+        tests:
+          - not_null
+          - unique
+      - name: filing_date
+        description: Actual filing date used as the duration endpoint.
+        tests:
+          - not_null
+      - name: created_to_filing_days
+        description: Days from workflow case creation to actual filing.
+        tests:
+          - non_negative
+      - name: initialized_to_filing_days
+        description: Days from workflow initialization to actual filing.
+        tests:
+          - non_negative
+      - name: kickoff_to_filing_days
+        description: Primary duration definition, from kickoff date to actual filing.
+        tests:
+          - non_negative
+      - name: classification_to_filing_days
+        description: Days from classification date to actual filing.
+        tests:
+          - non_negative
+      - name: is_valid_primary_duration
+        description: Binary flag for cases with non-null `kickoff_date`, non-null `filing_date_actual`, and `filing_date_actual >= kickoff_date`.
+        tests:
+          - accepted_values:
+              values: [0, 1]
+              quote: false
+      - name: has_legacy_case_link
+        description: Binary flag indicating whether the workflow case links back to a legacy CM case.
+        tests:
+          - accepted_values:
+              values: [0, 1]
+              quote: false
+
+  - name: int_case_workflow__file_upload_attempts
+    description: >
+      Assignment-grain file upload funnel inputs for beneficiary actions.
+      Incremental updates reprocess only assignments with newly ingested
+      Amplitude upload events.
+    tests:
+      - expression_is_true:
+          expression: "started_upload <= opened_plugin"
+      - expression_is_true:
+          expression: "has_successful_upload <= started_upload"
+      - expression_is_true:
+          expression: "uploaded_all_selected_files <= has_successful_upload"
+    columns:
+      - name: task_assignment_id
+        description: Upload attempt grain key at assignment level.
+        tests:
+          - not_null
+          - unique
+      - name: plugin_opened_date
+        description: Date of first beneficiary upload-plugin open.
+        tests:
+          - not_null
+      - name: max_ingestion_timestamp
+        description: Latest Amplitude ingestion timestamp observed for upload events on this assignment.
+        tests:
+          - not_null
+      - name: opened_plugin
+        description: Binary denominator flag for upload funnel assignments.
+        tests:
+          - accepted_values:
+              values: [0, 1]
+              quote: false
+      - name: started_upload
+        description: Binary step-two flag for assignments where the beneficiary started an upload.
+        tests:
+          - accepted_values:
+              values: [0, 1]
+              quote: false
+      - name: has_successful_upload
+        description: Binary success flag requiring at least one uploaded file with `success_count > 0`.
+        tests:
+          - accepted_values:
+              values: [0, 1]
+              quote: false
+      - name: uploaded_all_selected_files
+        description: Strict success flag requiring a completed upload event where `success_count = file_count` and `file_count > 0`.
+        tests:
+          - accepted_values:
+              values: [0, 1]
+              quote: false
+      - name: total_files_selected_across_attempts
+        description: Sum of selected files across upload-start events.
+        tests:
+          - non_negative
+      - name: total_successful_files_uploaded
+        description: Sum of successful uploaded files across upload-completed events.
+        tests:
+          - non_negative
+      - name: total_failed_files_uploaded
+        description: Sum of failed uploaded files across upload-completed events.
+        tests:
+          - non_negative

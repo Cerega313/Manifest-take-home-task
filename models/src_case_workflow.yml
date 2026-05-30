@@ -1,0 +1,474 @@
+version: 2
+
+sources:
+  - name: postgres_workflow
+    schema: raw_postgres
+    description: >
+      Operational Portal workflow tables. The production raw layer is assumed
+      to add `ingestion_timestamp` to each replicated table so freshness and
+      ingestion-volume checks monitor pipeline health, not business activity
+      timestamps.
+    tables:
+      - name: cw_case
+        description: New case-workflow case records.
+        config:
+          loaded_at_field: ingestion_timestamp
+          freshness:
+            error_after: {count: 30, period: hour}
+        data_tests:
+          - elementary.schema_changes:
+              config:
+                severity: warn
+                store_failures: true
+          - elementary.volume_anomalies:
+              name: raw_postgres_workflow_cw_case_volume_anomalies
+              arguments:
+                timestamp_column: ingestion_timestamp
+                anomaly_direction: both
+                time_bucket: {period: day, count: 1}
+                training_period: {period: day, count: 28}
+                detection_period: {period: day, count: 1}
+                anomaly_sensitivity: 3
+                fail_on_zero: true
+                seasonality: day_of_week
+              config:
+                severity: warn
+                store_failures: true
+        columns:
+          - name: id
+            description: Primary key for the workflow case.
+            tests:
+              - not_null
+              - unique
+          - name: ingestion_timestamp
+            description: Raw ingestion timestamp used for freshness and volume anomaly monitoring.
+            tests:
+              - not_null
+          - name: beneficiary_id
+            description: Beneficiary linked to the case. Nullable in the source schema.
+          - name: catalog_product_id
+            description: Product/visa key used as the available visa-type dimension in this packet.
+          - name: flow_template_id
+            description: Workflow template used to create the case.
+            tests:
+              - not_null
+          - name: status
+            description: Current case lifecycle status.
+            tests:
+              - not_null
+          - name: created_at
+            description: Operational case creation timestamp.
+            tests:
+              - not_null
+          - name: deleted_at
+            description: Soft-delete timestamp. Staging models exclude non-null values.
+
+      - name: cw_task
+        description: Workflow tasks attached to a case.
+        config:
+          loaded_at_field: ingestion_timestamp
+          freshness:
+            error_after: {count: 30, period: hour}
+        data_tests:
+          - elementary.schema_changes:
+              config:
+                severity: warn
+                store_failures: true
+          - elementary.volume_anomalies:
+              name: raw_postgres_workflow_cw_task_volume_anomalies
+              arguments:
+                timestamp_column: ingestion_timestamp
+                anomaly_direction: both
+                time_bucket: {period: day, count: 1}
+                training_period: {period: day, count: 28}
+                detection_period: {period: day, count: 1}
+                anomaly_sensitivity: 3
+                fail_on_zero: true
+                seasonality: day_of_week
+              config:
+                severity: warn
+                store_failures: true
+        columns:
+          - name: id
+            description: Primary key for the workflow task.
+            tests:
+              - not_null
+              - unique
+          - name: ingestion_timestamp
+            description: Raw ingestion timestamp used for freshness and volume anomaly monitoring.
+            tests:
+              - not_null
+          - name: case_id
+            description: Parent workflow case.
+            tests:
+              - not_null
+          - name: task_template_id
+            description: Template task identifier. Nullable for some non-template or custom work.
+          - name: creation_source
+            description: Source classification for how the task was created.
+            tests:
+              - not_null
+          - name: status
+            description: Current task lifecycle status.
+            tests:
+              - not_null
+          - name: created_at
+            description: Operational task creation timestamp.
+            tests:
+              - not_null
+          - name: deleted_at
+            description: Soft-delete timestamp. Staging models exclude non-null values.
+
+      - name: cw_task_assignment
+        description: Assignment flow records for each task.
+        config:
+          loaded_at_field: ingestion_timestamp
+          freshness:
+            error_after: {count: 30, period: hour}
+        data_tests:
+          - elementary.schema_changes:
+              config:
+                severity: warn
+                store_failures: true
+          - elementary.volume_anomalies:
+              name: raw_postgres_workflow_cw_task_assignment_volume_anomalies
+              arguments:
+                timestamp_column: ingestion_timestamp
+                anomaly_direction: both
+                time_bucket: {period: day, count: 1}
+                training_period: {period: day, count: 28}
+                detection_period: {period: day, count: 1}
+                anomaly_sensitivity: 3
+                fail_on_zero: true
+                seasonality: day_of_week
+              config:
+                severity: warn
+                store_failures: true
+        columns:
+          - name: id
+            description: Primary key for the workflow task assignment.
+            tests:
+              - not_null
+              - unique
+          - name: ingestion_timestamp
+            description: Raw ingestion timestamp used for freshness and volume anomaly monitoring.
+            tests:
+              - not_null
+          - name: task_id
+            description: Parent workflow task.
+            tests:
+              - not_null
+          - name: role_binding
+            description: Coarse case role that owns the assignment.
+            tests:
+              - not_null
+          - name: action
+            description: Required action for this assignment, such as upload, review, or approve.
+            tests:
+              - not_null
+          - name: status
+            description: Current assignment lifecycle status.
+            tests:
+              - not_null
+          - name: activated_ts
+            description: Timestamp when the assignment became active.
+          - name: submitted_ts
+            description: Timestamp when assigned work was submitted.
+          - name: completed_ts
+            description: Timestamp when the assignment was completed, often after review.
+          - name: created_at
+            description: Operational assignment creation timestamp.
+            tests:
+              - not_null
+          - name: deleted_at
+            description: Soft-delete timestamp. Staging models exclude non-null values.
+
+      - name: cw_task_predecessor
+        description: Soft dependency graph between tasks.
+        config:
+          loaded_at_field: ingestion_timestamp
+          freshness:
+            error_after: {count: 30, period: hour}
+        data_tests:
+          - elementary.schema_changes:
+              config:
+                severity: warn
+                store_failures: true
+          - elementary.volume_anomalies:
+              name: raw_postgres_workflow_cw_task_predecessor_volume_anomalies
+              arguments:
+                timestamp_column: ingestion_timestamp
+                anomaly_direction: both
+                time_bucket: {period: day, count: 1}
+                training_period: {period: day, count: 28}
+                detection_period: {period: day, count: 1}
+                anomaly_sensitivity: 3
+                fail_on_zero: false
+                seasonality: day_of_week
+              config:
+                severity: warn
+                store_failures: true
+        columns:
+          - name: task_id
+            description: Downstream task that depends on another task.
+            tests:
+              - not_null
+          - name: predecessor_task_id
+            description: Upstream task that precedes `task_id`.
+            tests:
+              - not_null
+          - name: ingestion_timestamp
+            description: Raw ingestion timestamp used for freshness and volume anomaly monitoring.
+            tests:
+              - not_null
+
+      - name: cm_case
+        description: Legacy Case Matter cases linked from `cw_case.case_matter_case_id`.
+        config:
+          loaded_at_field: ingestion_timestamp
+          freshness:
+            error_after: {count: 30, period: hour}
+        data_tests:
+          - elementary.schema_changes:
+              config:
+                severity: warn
+                store_failures: true
+          - elementary.volume_anomalies:
+              name: raw_postgres_workflow_cm_case_volume_anomalies
+              arguments:
+                timestamp_column: ingestion_timestamp
+                anomaly_direction: both
+                time_bucket: {period: day, count: 1}
+                training_period: {period: day, count: 28}
+                detection_period: {period: day, count: 1}
+                anomaly_sensitivity: 3
+                fail_on_zero: true
+                seasonality: day_of_week
+              config:
+                severity: warn
+                store_failures: true
+        columns:
+          - name: id
+            description: Primary key for a legacy case.
+            tests:
+              - not_null
+              - unique
+          - name: ingestion_timestamp
+            description: Raw ingestion timestamp used for freshness and volume anomaly monitoring.
+            tests:
+              - not_null
+          - name: beneficiary_id
+            description: Beneficiary linked to the legacy case.
+            tests:
+              - not_null
+          - name: product_id
+            description: Legacy product key.
+          - name: status
+            description: Legacy case lifecycle status.
+            tests:
+              - not_null
+          - name: created_at
+            description: Operational legacy case creation timestamp.
+            tests:
+              - not_null
+
+      - name: cm_evidence_document
+        description: Legacy evidence document records for historical comparison work.
+        config:
+          loaded_at_field: ingestion_timestamp
+          freshness:
+            error_after: {count: 30, period: hour}
+        data_tests:
+          - elementary.schema_changes:
+              config:
+                severity: warn
+                store_failures: true
+          - elementary.volume_anomalies:
+              name: raw_postgres_workflow_cm_evidence_document_volume_anomalies
+              arguments:
+                timestamp_column: ingestion_timestamp
+                anomaly_direction: both
+                time_bucket: {period: day, count: 1}
+                training_period: {period: day, count: 28}
+                detection_period: {period: day, count: 1}
+                anomaly_sensitivity: 3
+                fail_on_zero: false
+                seasonality: day_of_week
+              config:
+                severity: warn
+                store_failures: true
+        columns:
+          - name: id
+            description: Primary key for a legacy evidence document.
+            tests:
+              - not_null
+              - unique
+          - name: ingestion_timestamp
+            description: Raw ingestion timestamp used for freshness and volume anomaly monitoring.
+            tests:
+              - not_null
+          - name: evidence_id
+            description: Parent legacy evidence item.
+            tests:
+              - not_null
+          - name: status
+            description: Evidence review status.
+          - name: uploaded_by_case_role
+            description: Role that uploaded the document.
+          - name: iteration_count
+            description: Rework or reupload iteration count.
+            tests:
+              - non_negative
+          - name: created_at
+            description: Operational evidence document creation timestamp.
+            tests:
+              - not_null
+
+      - name: cm_evidence_property
+        description: Legacy evidence properties for historical comparison and prefill analysis.
+        config:
+          loaded_at_field: ingestion_timestamp
+          freshness:
+            error_after: {count: 30, period: hour}
+        data_tests:
+          - elementary.schema_changes:
+              config:
+                severity: warn
+                store_failures: true
+          - elementary.volume_anomalies:
+              name: raw_postgres_workflow_cm_evidence_property_volume_anomalies
+              arguments:
+                timestamp_column: ingestion_timestamp
+                anomaly_direction: both
+                time_bucket: {period: day, count: 1}
+                training_period: {period: day, count: 28}
+                detection_period: {period: day, count: 1}
+                anomaly_sensitivity: 3
+                fail_on_zero: false
+                seasonality: day_of_week
+              config:
+                severity: warn
+                store_failures: true
+        columns:
+          - name: id
+            description: Primary key for a legacy evidence property.
+            tests:
+              - not_null
+              - unique
+          - name: ingestion_timestamp
+            description: Raw ingestion timestamp used for freshness and volume anomaly monitoring.
+            tests:
+              - not_null
+          - name: evidence_id
+            description: Parent legacy evidence item.
+            tests:
+              - not_null
+          - name: property_type
+            description: Evidence property value type.
+            tests:
+              - not_null
+          - name: created_at
+            description: Operational evidence property creation timestamp.
+            tests:
+              - not_null
+
+      - name: cm_recommender
+        description: Legacy recommender records for historical comparison work.
+        config:
+          loaded_at_field: ingestion_timestamp
+          freshness:
+            error_after: {count: 30, period: hour}
+        data_tests:
+          - elementary.schema_changes:
+              config:
+                severity: warn
+                store_failures: true
+          - elementary.volume_anomalies:
+              name: raw_postgres_workflow_cm_recommender_volume_anomalies
+              arguments:
+                timestamp_column: ingestion_timestamp
+                anomaly_direction: both
+                time_bucket: {period: day, count: 1}
+                training_period: {period: day, count: 28}
+                detection_period: {period: day, count: 1}
+                anomaly_sensitivity: 3
+                fail_on_zero: false
+                seasonality: day_of_week
+              config:
+                severity: warn
+                store_failures: true
+        columns:
+          - name: id
+            description: Primary key for a legacy recommender.
+            tests:
+              - not_null
+              - unique
+          - name: ingestion_timestamp
+            description: Raw ingestion timestamp used for freshness and volume anomaly monitoring.
+            tests:
+              - not_null
+          - name: case_id
+            description: Parent legacy case.
+            tests:
+              - not_null
+          - name: status
+            description: Recommender workflow status.
+            tests:
+              - not_null
+          - name: created_at
+            description: Operational recommender creation timestamp.
+            tests:
+              - not_null
+
+  - name: amplitude
+    schema: raw_amplitude
+    description: >
+      Assumed Amplitude landing table with one row per event and a JSONB
+      `event_properties` payload. The raw landing table is assumed to include
+      string-form `event_time` and `ingestion_timestamp` fields; staging parses
+      them into typed timestamps. In production, the ingestion timestamp should
+      be either warehouse-native timestamp or consistently ISO-formatted text so
+      source freshness and Elementary volume checks can evaluate it safely.
+    tables:
+      - name: events
+        description: Assumed raw Amplitude export for the case workflow feature.
+        config:
+          loaded_at_field: ingestion_timestamp
+          freshness:
+            error_after: {count: 30, period: hour}
+        data_tests:
+          - elementary.schema_changes:
+              config:
+                severity: warn
+                store_failures: true
+          - elementary.volume_anomalies:
+              name: raw_amplitude_events_volume_anomalies
+              arguments:
+                timestamp_column: ingestion_timestamp
+                anomaly_direction: both
+                time_bucket: {period: day, count: 1}
+                training_period: {period: day, count: 28}
+                detection_period: {period: day, count: 1}
+                anomaly_sensitivity: 3
+                fail_on_zero: true
+                seasonality: day_of_week
+              config:
+                severity: warn
+                store_failures: true
+        columns:
+          - name: event_time
+            description: Raw text timestamp for when the user action or system event occurred.
+            tests:
+              - not_null
+          - name: ingestion_timestamp
+            description: Raw text ingestion timestamp used for freshness and volume anomaly monitoring.
+            tests:
+              - not_null
+          - name: event_type
+            description: Event name such as `cw_task_plugin_opened`.
+            tests:
+              - not_null
+          - name: event_properties
+            description: JSONB payload with case/task/plugin metadata.
+            tests:
+              - not_null
